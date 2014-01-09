@@ -4,9 +4,8 @@ Debug Panel middleware
 import threading
 import time
 
+from django.conf import settings
 from django.core.urlresolvers import reverse, resolve, Resolver404
-from django.http import HttpResponseRedirect
-from django.shortcuts import render
 
 from debug_toolbar.middleware import DebugToolbarMiddleware
 
@@ -40,7 +39,7 @@ class DebugPanelMiddleware(DebugToolbarMiddleware):
 
     def process_request(self, request):
         """
-        Try to match the request with an URL from debug_panel application.
+        Try to match the request with a URL from the debug_panel application.
 
         If it matches, that means we are serving a view from debug_panel,
         and we can skip the debug_toolbar middleware.
@@ -58,43 +57,22 @@ class DebugPanelMiddleware(DebugToolbarMiddleware):
 
     def process_response(self, request, response):
         """
-        Since there is no hook to intercept and change rendering of the default
-        debug_toolbar middleware, this is mostly a copy the original debug_toolbar
-        middleware.
-
-        Instead of rendering the debug_toolbar inside the response HTML, it's stored
+        In addition to rendering the toolbar inside the response HTML, store it
         in the Django cache.
 
-        The data stored in the cache are then reachable from an URL that is appened
-        to the HTTP response header under the 'X-debug-data-url' key.
+        The data stored in the cache is then reachable from a URL that is
+        appened to the HTTP response header under the 'X-debug-data-url' key.
         """
-        __traceback_hide__ = True
-        ident = threading.current_thread().ident
-        toolbar = self.__class__.debug_toolbars.get(ident)
-        if not toolbar:
-            return response
-        if isinstance(response, HttpResponseRedirect):
-            if not toolbar.config['INTERCEPT_REDIRECTS']:
-                return response
-            redirect_to = response.get('Location', None)
-            if redirect_to:
-                cookies = response.cookies
-                response = render(
-                    request,
-                    'debug_toolbar/redirect.html',
-                    {'redirect_to': redirect_to}
-                )
-                response.cookies = cookies
+        toolbar = self.__class__.debug_toolbars.get(threading.current_thread().ident)
 
-        for panel in toolbar.panels:
-            panel.process_response(request, response)
+        response = super(DebugPanelMiddleware, self).process_response(request, response)
 
-        timestamp = str(time.time())
-        cache_key = "django-debug-panel:" + timestamp
-        cache.set(cache_key, toolbar.render_toolbar())
+        if toolbar:
+            timestamp = str(time.time())
+            cache_key = "django-debug-panel:" + timestamp
+            cache.set(cache_key, toolbar.render_toolbar())
 
-        response['X-debug-data-url'] = request.build_absolute_uri(
-            reverse('debug_data', urlconf=debug_panel.urls, kwargs={'timestamp': timestamp}))
+            response['X-debug-data-url'] = request.build_absolute_uri(
+                reverse('debug_data', urlconf=debug_panel.urls, kwargs={'timestamp': timestamp}))
 
-        del self.__class__.debug_toolbars[ident]
         return response
