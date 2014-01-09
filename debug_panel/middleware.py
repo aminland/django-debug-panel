@@ -72,11 +72,12 @@ class DebugPanelMiddleware(DebugToolbarMiddleware):
         for panel in toolbar.panels:
             panel.process_response(request, response)
 
-        cache_key = "%f" % time.time()
+        timestamp = str(time.time())
+        cache_key = "django-debug-panel:" + timestamp
         cache.set(cache_key, toolbar.render_toolbar())
 
         response['X-debug-data-url'] = request.build_absolute_uri(
-            reverse('debug_data', urlconf=debug_panel.urls, kwargs={'cache_key': cache_key}))
+            reverse('debug_data', urlconf=debug_panel.urls, kwargs={'timestamp': timestamp}))
 
         del self.__class__.debug_toolbars[ident]
         return response
