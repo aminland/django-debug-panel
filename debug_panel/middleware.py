@@ -1,17 +1,34 @@
 """
 Debug Panel middleware
 """
-from debug_toolbar.middleware import DebugToolbarMiddleware
+import threading
+import time
+
 from django.core.urlresolvers import reverse, resolve, Resolver404
 from django.http import HttpResponseRedirect
 from django.shortcuts import render
-import threading
-import time
+
+from debug_toolbar.middleware import DebugToolbarMiddleware
 
 from debug_panel.cache import cache
 
 # the urls patterns that concern only the debug_panel application
 import debug_panel.urls
+
+
+def show_toolbar(request):
+    if request.META.get('REMOTE_ADDR', None) not in settings.INTERNAL_IPS:
+        return False
+
+    try:
+        match = resolve(request.path)
+    except Resolver404:
+        pass
+    else:
+        if match.func.__module__.startswith('debug_toolbar.'):
+            return False
+
+    return bool(settings.DEBUG)
 
 
 class DebugPanelMiddleware(DebugToolbarMiddleware):
