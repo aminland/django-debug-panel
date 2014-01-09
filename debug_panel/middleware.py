@@ -3,6 +3,7 @@ Debug Panel middleware
 """
 import threading
 import time
+import types
 
 from django.conf import settings
 from django.core.urlresolvers import reverse, resolve, Resolver404
@@ -64,6 +65,16 @@ class DebugPanelMiddleware(DebugToolbarMiddleware):
         appened to the HTTP response header under the 'X-debug-data-url' key.
         """
         toolbar = self.__class__.debug_toolbars.get(threading.current_thread().ident)
+
+        if toolbar:
+            toolbar._rendered_output = None
+
+            original_render_toolbar = toolbar.render_toolbar
+            def cache_rendered_output(toolbar):
+                if toolbar._rendered_output is None:
+                    toolbar._rendered_output = original_render_toolbar()
+                return toolbar._rendered_output
+            toolbar.render_toolbar = types.MethodType(cache_rendered_output, toolbar)
 
         response = super(DebugPanelMiddleware, self).process_response(request, response)
 
