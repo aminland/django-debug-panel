@@ -66,7 +66,7 @@ class DebugPanelMiddleware(debug_toolbar.middleware.DebugToolbarMiddleware):
         if toolbar:
             # for django-debug-toolbar >= 1.4
             for panel in reversed(toolbar.enabled_panels):
-                if hasattr(panel, 'generate_stats'):
+                if hasattr(panel, 'generate_stats') and not panel.get_stats():
                     panel.generate_stats(request, response)
 
             cache_key = "%f" % time.time()
